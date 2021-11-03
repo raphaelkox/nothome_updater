@@ -1,0 +1,9 @@
+rooms:
+- name: "room1"
+  points:
+  - "LeftSpawn"
+  - "RightExit"
+  - "CenterExit"
+- name: "room2"
+  points:
+  - "LeftExit"

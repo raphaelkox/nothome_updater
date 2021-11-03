@@ -1,0 +1,5 @@
+inputs:
+  - name: "Jump"
+    key: "Space"
+  - name: "Interact"
+    key: "Z"

@@ -3,8 +3,9 @@ package main
 import (
 	"fmt"
 	"os"
-	"updater/input"
+	"updater/inputs"
 	"updater/rooms"
+	updategroups "updater/update_groups"
 )
 
 func main() {
@@ -15,9 +16,11 @@ func main() {
 
 	switch os.Args[1] {
 	case "input":
-		input.Updateinput()
+		inputs.Updateinput()
 	case "rooms":
 		rooms.UpdateRooms()
+	case "update_groups":
+		updategroups.UpdateGroups()
 	default:
 		fmt.Println("Invalid argument")
 	}

@@ -1,4 +1,4 @@
-package input
+package inputs
 
 import (
 	"bufio"
@@ -74,7 +74,7 @@ func CreateStateStruct(inputList []InputData) string {
 func CreateUpdateMethod(inputList []InputData) string {
 	var result string
 
-	result += fmt.Sprintf("public static void Update() {\n")
+	result += fmt.Sprintf("public static void OnUpdate() {\n")
 	result += fmt.Sprintf("prevState = currentState;\n\n")
 	result += fmt.Sprintf("UpdateDirectionInput();\n")
 

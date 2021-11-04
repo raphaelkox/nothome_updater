@@ -3,3 +3,5 @@ inputs:
     key: "Space"
   - name: "Interact"
     key: "Z"
+  - name: "Menu"
+    key: "Tab"

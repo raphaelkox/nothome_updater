@@ -33,14 +33,13 @@ func UpdateRooms() {
 		fmt.Println("Failed unmarshalling rooms.yaml")
 	}
 
-	filePath := "../nothome/Assets/Scripts/RoomSystem.cs"
+	filePath := "../nothome/Assets/Scripts/RoomSystemSpawnPoints.cs"
 	os.Truncate(filePath, 0)
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0644)
 	datawriter := bufio.NewWriter(file)
 
 	_, _ = datawriter.WriteString(using)
 	_, _ = datawriter.WriteString(classHeader)
-	_, _ = datawriter.WriteString("public static string NextRoomSpawn = \"RIGHT\";\n\n")
 	_, _ = datawriter.WriteString("public static Dictionary<string, System.Type> SpawnPointLists = new Dictionary<string, System.Type>() {\n")
 
 	for _, r := range roomList.Rooms {

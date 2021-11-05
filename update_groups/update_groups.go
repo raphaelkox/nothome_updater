@@ -13,21 +13,21 @@ type UpdateGroupList struct {
 	Groups []string `yaml:"groups"`
 }
 
-const using string = "using System;\nusing UnityEngine;\nusing NaughtyAttributes;\n\n"
+const using string = "using System;\nusing System.Collections.Generic;\n\n"
 const enumHeader string = "public enum UpdateGroup\n{\n"
-const classHeader string = "public partial class MonoBehaviourHook : MonoBehaviour\n{\n"
-const boxGroup string = "[BoxGroup(\"Groups\")]\n"
-const setupGroups string = "void SetupUpdateGroups()\n{\n"
+const classHeader string = "public static class UpdateGroupsManager\n{\n"
+const dictionaryHeader = "private static Dictionary<UpdateGroup, bool> UpdateGroupsActive = new Dictionary<UpdateGroup, bool>() {\n"
+const groupActiveFunc = "public static bool IsGroupActive(UpdateGroup group) {\nreturn UpdateGroupsActive[group];\n}\n"
+const setGroupsStateFunc = "public static void SetUpdateGroupState(UpdateGroup group, bool state) {\nUpdateGroupsActive[group] = state;\n}\n\n"
 const switchGroup string = "switch (group) {\n"
-const updateHeader string = "using UnityEngine;\n\npublic partial class MonoBehaviourHook : MonoBehaviour\n{\nprivate void Update() {\n"
-const regUpdate string = "public void RegisterUpdateConsumer(IUpdatable consumer, UpdateGroup group) {\n"
-const unregUpdate string = "public void UnregisterUpdateConsumer(IUpdatable consumer, UpdateGroup group) {\n"
-const lateUpdateHeader string = "using UnityEngine;\n\npublic partial class MonoBehaviourHook : MonoBehaviour\n{\nprivate void LateUpdate() {\n"
-const regLateUpdate string = "public void RegisterLateUpdateConsumer(ILateUpdatable consumer, UpdateGroup group) {\n"
-const unregLateUpdate string = "public void UnregisterLateUpdateConsumer(ILateUpdatable consumer, UpdateGroup group) {\n"
-const groupsFileCs = "../nothome/Assets/Scripts/MonoBehaviourHookGroups.cs"
-const updateFileCs = "../nothome/Assets/Scripts/MonoBehaviourHookUpdate.cs"
-const lateUpdateFileCs = "../nothome/Assets/Scripts/MonoBehaviourHooklateUpdate.cs"
+const updateHeader string = "\npublic static void OnUpdate() {\n"
+const regUpdate string = "public static void RegisterUpdateConsumer(IUpdatable consumer, UpdateGroup group) {\n"
+const unregUpdate string = "public static void UnregisterUpdateConsumer(IUpdatable consumer, UpdateGroup group) {\n"
+const lateUpdateHeader string = "\npublic static void OnLateUpdate() {\n"
+const regLateUpdate string = "public static void RegisterLateUpdateConsumer(ILateUpdatable consumer, UpdateGroup group) {\n"
+const unregLateUpdate string = "public static void UnregisterLateUpdateConsumer(ILateUpdatable consumer, UpdateGroup group) {\n"
+
+const groupsFileCs = "../nothome/Assets/Scripts/UpdateGroupsManager.cs"
 
 func UpdateGroups() {
 	groupsFile, err := ioutil.ReadFile("./data/updategroups.yaml")
@@ -35,33 +35,16 @@ func UpdateGroups() {
 		fmt.Println("Failed opening updategroups.yaml")
 	}
 
-	groupList := &UpdateGroupList{}
-	err = yaml.Unmarshal(groupsFile, groupList)
+	groups := &UpdateGroupList{}
+	err = yaml.Unmarshal(groupsFile, groups)
 	if err != nil {
 		fmt.Println("Failed unmarshalling updategroups.yaml")
 	}
 
-	err = CreateGroupsFile(*groupList)
-	if err != nil {
-		fmt.Println("Failed Updating MonoBehaviourHookGroups.cs")
-	}
-
-	err = CreateUpdateFile(*groupList)
-	if err != nil {
-		fmt.Println("Failed Updating MonoBehaviourHookUpdate.cs")
-	}
-
-	err = CreateLateUpdateFile(*groupList)
-	if err != nil {
-		fmt.Println("Failed Updating MonoBehaviourHookLateUpdate.cs")
-	}
-}
-
-func CreateGroupsFile(groups UpdateGroupList) error {
 	os.Truncate(groupsFileCs, 0)
 	file, err := os.OpenFile(groupsFileCs, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return err
+		fmt.Println("Failed opening updategroups.yaml")
 	}
 	datawriter := bufio.NewWriter(file)
 
@@ -76,35 +59,20 @@ func CreateGroupsFile(groups UpdateGroupList) error {
 	result += "}\n\n"
 
 	result += classHeader
+	result += dictionaryHeader
+
 	for _, g := range groups.Groups {
-		result += boxGroup
-		result += fmt.Sprintf("public bool %sActive;\n", g)
-		result += fmt.Sprintf("public event Action On%sUpdate;\n", g)
-		result += fmt.Sprintf("public event Action On%sLateUpdate;\n\n", g)
+		result += fmt.Sprintf("{UpdateGroup.%s, true},\n", g)
 	}
 
-	result += setupGroups
+	result += "};\n\n"
+
+	result += groupActiveFunc
+	result += setGroupsStateFunc
+
 	for _, g := range groups.Groups {
-		result += fmt.Sprintf("UpdateGroupsActive.Add(UpdateGroup.%s, %sActive);\n", g, g)
+		result += fmt.Sprintf("public static event Action On%sUpdate;\n", g)
 	}
-	result += "}\n}"
-
-	_, _ = datawriter.WriteString(result)
-	datawriter.Flush()
-	file.Close()
-
-	return nil
-}
-
-func CreateUpdateFile(groups UpdateGroupList) error {
-	os.Truncate(updateFileCs, 0)
-	file, err := os.OpenFile(updateFileCs, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	datawriter := bufio.NewWriter(file)
-
-	var result string
 
 	result += updateHeader
 
@@ -125,24 +93,11 @@ func CreateUpdateFile(groups UpdateGroupList) error {
 	for _, g := range groups.Groups {
 		result += fmt.Sprintf("case UpdateGroup.%s:\nOn%sUpdate -= consumer.OnUpdate;\nbreak;\n", g, g)
 	}
-	result += "default:\nbreak;\n}\n}\n}"
+	result += "default:\nbreak;\n}\n}\n\n"
 
-	_, _ = datawriter.WriteString(result)
-	datawriter.Flush()
-	file.Close()
-
-	return nil
-}
-
-func CreateLateUpdateFile(groups UpdateGroupList) error {
-	os.Truncate(lateUpdateFileCs, 0)
-	file, err := os.OpenFile(lateUpdateFileCs, os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
+	for _, g := range groups.Groups {
+		result += fmt.Sprintf("public static event Action On%sLateUpdate;\n", g)
 	}
-	datawriter := bufio.NewWriter(file)
-
-	var result string
 
 	result += lateUpdateHeader
 
@@ -168,6 +123,4 @@ func CreateLateUpdateFile(groups UpdateGroupList) error {
 	_, _ = datawriter.WriteString(result)
 	datawriter.Flush()
 	file.Close()
-
-	return nil
 }

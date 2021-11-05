@@ -98,11 +98,17 @@ func CreateDirectionInput() string {
             OnDirInput?.Invoke(currentState.direction);
         }
     }
-    public static void RegisterDirectionConsumer(IDirectionInputConsumer consumer) {
-        OnDirInput += consumer.HandleDirectionInput;
+    public static void RegisterDirectionConsumer(IRegistrable consumer) {
+        consumer.OnDisableEvent += UnregisterDirectionConsumer;
+        consumer.OnDestroyEvent += UnregisterDirectionConsumer;
+        IDirectionInputConsumer directionConsumer = consumer as IDirectionInputConsumer;        
+        OnDirInput += directionConsumer.HandleDirectionInput;
     }
-    public static void UnregisterDirectionConsumer(IDirectionInputConsumer consumer) {
-        OnDirInput -= consumer.HandleDirectionInput;
+    public static void UnregisterDirectionConsumer(IRegistrable consumer) {
+        IDirectionInputConsumer directionConsumer = consumer as IDirectionInputConsumer;
+        OnDirInput -= directionConsumer.HandleDirectionInput;
+        consumer.OnDisableEvent -= UnregisterDirectionConsumer;
+        consumer.OnDestroyEvent -= UnregisterDirectionConsumer;
     }
     public interface IDirectionInputConsumer
     {
@@ -127,12 +133,18 @@ func CreateButtonInput(name string, key string) string {
 	result += fmt.Sprintf("On%sInputDown?.Invoke();\n}\n", name)
 	result += fmt.Sprintf("if (Input.GetKeyUp(KeyCode.%s)) {\n", key)
 	result += fmt.Sprintf("On%sInputUp?.Invoke();\n}\n}\n", name)
-	result += fmt.Sprintf("public static void Register%sConsumer(I%sInputConsumer consumer) {\n", name, name)
-	result += fmt.Sprintf("On%sInputDown += consumer.Handle%sInputDown;\n", name, name)
-	result += fmt.Sprintf("On%sInputUp += consumer.Handle%sInputUp;\n}\n", name, name)
-	result += fmt.Sprintf("public static void Unregister%sConsumer(I%sInputConsumer consumer) {\n", name, name)
-	result += fmt.Sprintf("On%sInputDown -= consumer.Handle%sInputDown;\n", name, name)
-	result += fmt.Sprintf("On%sInputUp -= consumer.Handle%sInputUp;\n}\n", name, name)
+	result += fmt.Sprintf("public static void Register%sConsumer(IRegistrable consumer) {\n", name)
+	result += fmt.Sprintf("consumer.OnDisableEvent += Unregister%sConsumer;\n", name)
+	result += fmt.Sprintf("consumer.OnDestroyEvent += Unregister%sConsumer;\n", name)
+	result += fmt.Sprintf("I%sInputConsumer %sConsumer = consumer as I%sInputConsumer;\n", name, name, name)
+	result += fmt.Sprintf("On%sInputDown += %sConsumer.Handle%sInputDown;\n", name, name, name)
+	result += fmt.Sprintf("On%sInputUp += %sConsumer.Handle%sInputUp;\n}\n", name, name, name)
+	result += fmt.Sprintf("public static void Unregister%sConsumer(IRegistrable consumer) {\n", name)
+	result += fmt.Sprintf("I%sInputConsumer %sConsumer = consumer as I%sInputConsumer;\n", name, name, name)
+	result += fmt.Sprintf("On%sInputDown -= %sConsumer.Handle%sInputDown;\n", name, name, name)
+	result += fmt.Sprintf("On%sInputUp -= %sConsumer.Handle%sInputUp;\n", name, name, name)
+	result += fmt.Sprintf("consumer.OnDisableEvent -= Unregister%sConsumer;\n", name)
+	result += fmt.Sprintf("consumer.OnDestroyEvent -= Unregister%sConsumer;\n}\n", name)
 	result += fmt.Sprintf("public interface I%sInputConsumer {\n", name)
 	result += fmt.Sprintf("public void Handle%sInputDown();\n", name)
 	result += fmt.Sprintf("public void Handle%sInputUp();\n}\n", name)

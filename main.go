@@ -15,8 +15,8 @@ func main() {
 	}
 
 	switch os.Args[1] {
-	case "input":
-		inputs.Updateinput()
+	case "inputs":
+		inputs.UpdateInputs()
 	case "rooms":
 		rooms.UpdateRooms()
 	case "update_groups":

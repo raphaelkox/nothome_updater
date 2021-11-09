@@ -1,7 +1,7 @@
 inputs:
   - name: "Jump"
-    key: "Space"
-  - name: "Interact"
     key: "Z"
+  - name: "Interact"
+    key: "A"
   - name: "Menu"
     key: "Tab"

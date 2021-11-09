@@ -23,7 +23,7 @@ const using string = "using System;\nusing UnityEngine;\n\n"
 const classHeader string = "public static partial class InputManager {\n"
 const structHeader string = "public struct InputState {\n"
 
-func Updateinput() {
+func UpdateInputs() {
 	inputsFile, err := ioutil.ReadFile("./data/inputs.yaml")
 	if err != nil {
 		fmt.Println("Failed opening inputs.yaml")
@@ -35,19 +35,60 @@ func Updateinput() {
 		fmt.Println("Failed unmarshalling inputs.yaml")
 	}
 
-	filePath := "../nothome/Assets/Scripts/InputManagerMethods.cs"
+	updateInputMethods(inputList)
+	updateInputConsumer(inputList)
+}
+
+func updateInputConsumer(inputList *InputList) {
+	filePath := "../nothome/Assets/Scripts/InputSystem/InputConsumer.cs"
 	os.Truncate(filePath, 0)
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Println("Failed opening output file: InputConsumer.cs")
+		return
+	}
+	datawriter := bufio.NewWriter(file)
+
+	_, _ = datawriter.WriteString("using UnityEngine;\n")
+	_, _ = datawriter.WriteString("public class InputConsumer : MonoBehaviour\n{\n")
+	_, _ = datawriter.WriteString("[SerializeField] CustomBehaviour consumer;\n\n")
+
+	_, _ = datawriter.WriteString("[SerializeField] bool Direction;")
+	for _, input := range inputList.Inputs {
+		_, _ = datawriter.WriteString(fmt.Sprintf("[SerializeField] bool %s;\n", input.Name))
+	}
+
+	_, _ = datawriter.WriteString("\nprivate void OnEnable() {\n")
+
+	_, _ = datawriter.WriteString("if (Direction) {\nInputManager.RegisterDirectionConsumer(consumer);\n}\n")
+	for _, input := range inputList.Inputs {
+		_, _ = datawriter.WriteString(fmt.Sprintf("if (%s) {\nInputManager.Register%sConsumer(consumer);\n}\n", input.Name, input.Name))
+	}
+
+	_, _ = datawriter.WriteString("}\n}")
+
+	datawriter.Flush()
+	file.Close()
+}
+
+func updateInputMethods(inputList *InputList) {
+	filePath := "../nothome/Assets/Scripts/InputSystem/InputManagerMethods.cs"
+	os.Truncate(filePath, 0)
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Println("Failed opening output file: InputManagerMethods.cs")
+		return
+	}
 	datawriter := bufio.NewWriter(file)
 
 	_, _ = datawriter.WriteString(using)
 	_, _ = datawriter.WriteString(classHeader)
-	_, _ = datawriter.WriteString(CreateStateStruct(inputList.Inputs))
-	_, _ = datawriter.WriteString(CreateUpdateMethod(inputList.Inputs))
-	_, _ = datawriter.WriteString(CreateDirectionInput())
+	_, _ = datawriter.WriteString(createStateStruct(inputList.Inputs))
+	_, _ = datawriter.WriteString(createUpdateMethod(inputList.Inputs))
+	_, _ = datawriter.WriteString(createDirectionInput())
 
 	for _, input := range inputList.Inputs {
-		_, _ = datawriter.WriteString(CreateButtonInput(input.Name, input.Key))
+		_, _ = datawriter.WriteString(createButtonInput(input.Name, input.Key))
 	}
 
 	_, _ = datawriter.WriteString("}")
@@ -56,7 +97,7 @@ func Updateinput() {
 	file.Close()
 }
 
-func CreateStateStruct(inputList []InputData) string {
+func createStateStruct(inputList []InputData) string {
 	var result string
 
 	result += structHeader
@@ -71,7 +112,7 @@ func CreateStateStruct(inputList []InputData) string {
 	return result
 }
 
-func CreateUpdateMethod(inputList []InputData) string {
+func createUpdateMethod(inputList []InputData) string {
 	var result string
 
 	result += fmt.Sprintf("public static void OnUpdate() {\n")
@@ -87,7 +128,7 @@ func CreateUpdateMethod(inputList []InputData) string {
 	return result
 }
 
-func CreateDirectionInput() string {
+func createDirectionInput() string {
 	var result string
 
 	result += `#region Direction
@@ -121,7 +162,7 @@ func CreateDirectionInput() string {
 	return result
 }
 
-func CreateButtonInput(name string, key string) string {
+func createButtonInput(name string, key string) string {
 	var result string
 
 	result += fmt.Sprintf("\n#region %s\n", name)

@@ -27,7 +27,7 @@ const lateUpdateHeader string = "\npublic static void OnLateUpdate() {\n"
 const regLateUpdate string = "public static void RegisterLateUpdateConsumer(ILateUpdatable consumer, UpdateGroup group) {\n"
 const unregLateUpdate string = "public static void UnregisterLateUpdateConsumer(ILateUpdatable consumer, UpdateGroup group) {\n"
 
-const groupsFileCs = "../nothome/Assets/Scripts/UpdateGroupsManager.cs"
+const groupsFileCs = "../nothome/Assets/Scripts/Core/UpdateGroupsManager.cs"
 
 func UpdateGroups() {
 	groupsFile, err := ioutil.ReadFile("./data/updategroups.yaml")

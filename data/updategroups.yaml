@@ -1,5 +1,6 @@
 groups:
+- "PlayerInput"
+- "MenuInput"
 - "Default"
 - "World"
-- "Input"
 - "Player"

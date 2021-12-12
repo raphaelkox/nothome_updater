@@ -10,7 +10,12 @@ import (
 	yaml "gopkg.in/yaml.v2"
 )
 
-type InputList struct {
+type InputGroupList struct {
+	Groups []InputGroup `yaml:"groups"`
+}
+
+type InputGroup struct {
+	Name   string
 	Inputs []InputData `yaml:"inputs"`
 }
 
@@ -21,48 +26,78 @@ type InputData struct {
 
 const using string = "using System;\nusing UnityEngine;\n\n"
 const classHeader string = "public static partial class InputManager {\n"
-const structHeader string = "public struct InputState {\n"
 
-func UpdateInputs() {
+func UpdateInputGroups() {
 	inputsFile, err := ioutil.ReadFile("./data/inputs.yaml")
 	if err != nil {
 		fmt.Println("Failed opening inputs.yaml")
 	}
 
-	inputList := &InputList{}
-	err = yaml.Unmarshal(inputsFile, inputList)
+	inputGroupList := &InputGroupList{}
+	err = yaml.Unmarshal(inputsFile, inputGroupList)
 	if err != nil {
 		fmt.Println("Failed unmarshalling inputs.yaml")
 	}
 
-	updateInputMethods(inputList)
-	updateInputConsumer(inputList)
-}
-
-func updateInputConsumer(inputList *InputList) {
-	filePath := "../nothome/Assets/Scripts/InputSystem/InputConsumer.cs"
+	filePath := "../nothome/Assets/Scripts/InputSystem/InputManager.cs"
 	os.Truncate(filePath, 0)
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		fmt.Println("Failed opening output file: InputConsumer.cs")
+		fmt.Println("Failed opening output file: InputManager.cs")
 		return
 	}
 	datawriter := bufio.NewWriter(file)
 
-	_, _ = datawriter.WriteString("using UnityEngine;\n")
-	_, _ = datawriter.WriteString("public class InputConsumer : MonoBehaviour\n{\n")
-	_, _ = datawriter.WriteString("[SerializeField] CustomBehaviour consumer;\n\n")
+	_, _ = datawriter.WriteString("namespace NH.Input\n{\n")
+	_, _ = datawriter.WriteString("using Core;\n\n")
+	_, _ = datawriter.WriteString("public static partial class InputManager\n{\n")
+	_, _ = datawriter.WriteString("static bool Registered = false;\n\n")
+	_, _ = datawriter.WriteString("public static void Setup() {\nif (!Registered) {\n")
 
-	_, _ = datawriter.WriteString("[SerializeField] bool Direction;")
-	for _, input := range inputList.Inputs {
-		_, _ = datawriter.WriteString(fmt.Sprintf("[SerializeField] bool %s;\n", input.Name))
+	for _, group := range inputGroupList.Groups {
+		_, _ = datawriter.WriteString(fmt.Sprintf("UpdateGroupsManager.On%sInputUpdate += %sInputGroup.OnUpdate;\n", group.Name, group.Name))
+		updateInputs(&group)
 	}
 
-	_, _ = datawriter.WriteString("\nprivate void OnEnable() {\n")
+	_, _ = datawriter.WriteString("Registered = true;\n}\n}\n}\n}")
 
-	_, _ = datawriter.WriteString("if (Direction) {\nInputManager.RegisterDirectionConsumer(consumer);\n}\n")
-	for _, input := range inputList.Inputs {
-		_, _ = datawriter.WriteString(fmt.Sprintf("if (%s) {\nInputManager.Register%sConsumer(consumer);\n}\n", input.Name, input.Name))
+	datawriter.Flush()
+	file.Close()
+}
+
+func updateInputs(inputGroup *InputGroup) {
+	updateInputGroup(inputGroup)
+	updateInputConsumer(inputGroup)
+}
+
+func updateInputGroup(inputGroup *InputGroup) {
+	name := inputGroup.Name
+	filePath := fmt.Sprintf("../nothome/Assets/Scripts/InputSystem/%sInputGroup.cs", name)
+	os.Truncate(filePath, 0)
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		fmt.Printf("Failed opening output file: %sInputGroup.cs\n", name)
+		return
+	}
+	datawriter := bufio.NewWriter(file)
+
+	_, _ = datawriter.WriteString(using)
+	_, _ = datawriter.WriteString("namespace NH.Input\n{")
+	_, _ = datawriter.WriteString("using Interfaces;\n")
+	_, _ = datawriter.WriteString("using Input = UnityEngine.Input;\n\n")
+	_, _ = datawriter.WriteString(fmt.Sprintf("public static class %sInputGroup \n{\n", name))
+
+	_, _ = datawriter.WriteString(createStateStruct(inputGroup))
+	_, _ = datawriter.WriteString(fmt.Sprintf("static %sInputState currentState;\n", inputGroup.Name))
+	_, _ = datawriter.WriteString(fmt.Sprintf("static %sInputState prevState;\n\n", inputGroup.Name))
+
+	_, _ = datawriter.WriteString(fmt.Sprintf("public static %sInputState CurrentState {\nget { return currentState; }\n}\n", inputGroup.Name))
+	_, _ = datawriter.WriteString(fmt.Sprintf("public static %sInputState PrevState {\nget { return prevState; }\n}\n", inputGroup.Name))
+
+	_, _ = datawriter.WriteString(createUpdateMethod(inputGroup.Inputs))
+
+	for _, input := range inputGroup.Inputs {
+		_, _ = datawriter.WriteString(createInput(input.Name, input.Key))
 	}
 
 	_, _ = datawriter.WriteString("}\n}")
@@ -71,39 +106,42 @@ func updateInputConsumer(inputList *InputList) {
 	file.Close()
 }
 
-func updateInputMethods(inputList *InputList) {
-	filePath := "../nothome/Assets/Scripts/InputSystem/InputManagerMethods.cs"
+func updateInputConsumer(inputGroup *InputGroup) {
+	name := inputGroup.Name
+	filePath := fmt.Sprintf("../nothome/Assets/Scripts/InputSystem/%sInputConsumer.cs", name)
 	os.Truncate(filePath, 0)
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		fmt.Println("Failed opening output file: InputManagerMethods.cs")
+		fmt.Printf("Failed opening output file: Input%sConsumer.cs\n", name)
 		return
 	}
 	datawriter := bufio.NewWriter(file)
 
-	_, _ = datawriter.WriteString(using)
-	_, _ = datawriter.WriteString(classHeader)
-	_, _ = datawriter.WriteString(createStateStruct(inputList.Inputs))
-	_, _ = datawriter.WriteString(createUpdateMethod(inputList.Inputs))
-	_, _ = datawriter.WriteString(createDirectionInput())
+	_, _ = datawriter.WriteString("using UnityEngine;\n")
+	_, _ = datawriter.WriteString(fmt.Sprintf("public class %sInputConsumer : MonoBehaviour\n{\n", name))
+	_, _ = datawriter.WriteString("[SerializeField] CustomBehaviour consumer;\n\n")
 
-	for _, input := range inputList.Inputs {
-		_, _ = datawriter.WriteString(createButtonInput(input.Name, input.Key))
+	for _, input := range inputGroup.Inputs {
+		_, _ = datawriter.WriteString(fmt.Sprintf("[SerializeField] bool %s;\n", input.Name))
 	}
 
-	_, _ = datawriter.WriteString("}")
+	_, _ = datawriter.WriteString("\nprivate void OnEnable() {\n")
+
+	for _, input := range inputGroup.Inputs {
+		_, _ = datawriter.WriteString(fmt.Sprintf("if (%s) {\n%sInputGroup.Register%sConsumer(consumer);\n}\n", input.Name, inputGroup.Name, input.Name))
+	}
+
+	_, _ = datawriter.WriteString("}\n}")
 
 	datawriter.Flush()
 	file.Close()
 }
 
-func createStateStruct(inputList []InputData) string {
+func createStateStruct(inputGroup *InputGroup) string {
 	var result string
 
-	result += structHeader
-	result += "public Vector2 direction;\n"
-
-	for _, input := range inputList {
+	result += fmt.Sprintf("public struct %sInputState {\n", inputGroup.Name)
+	for _, input := range inputGroup.Inputs {
 		result += fmt.Sprintf("public bool %s;\n", strings.ToLower(input.Name))
 	}
 
@@ -112,14 +150,13 @@ func createStateStruct(inputList []InputData) string {
 	return result
 }
 
-func createUpdateMethod(inputList []InputData) string {
+func createUpdateMethod(inputGroup []InputData) string {
 	var result string
 
 	result += fmt.Sprintf("public static void OnUpdate() {\n")
 	result += fmt.Sprintf("prevState = currentState;\n\n")
-	result += fmt.Sprintf("UpdateDirectionInput();\n")
 
-	for _, input := range inputList {
+	for _, input := range inputGroup {
 		result += fmt.Sprintf("Update%sInput();\n", input.Name)
 	}
 
@@ -128,41 +165,7 @@ func createUpdateMethod(inputList []InputData) string {
 	return result
 }
 
-func createDirectionInput() string {
-	var result string
-
-	result += `#region Direction
-    public static event Action<Vector2> OnDirInput;
-    static void UpdateDirectionInput() {
-        currentState.direction = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
-        if (currentState.direction != prevState.direction) {
-            OnDirInput?.Invoke(currentState.direction);
-        }
-    }
-    public static void RegisterDirectionConsumer(IRegistrable consumer) {
-        consumer.OnDisableEvent += UnregisterDirectionConsumer;
-        consumer.OnDestroyEvent += UnregisterDirectionConsumer;
-        IDirectionInputConsumer directionConsumer = consumer as IDirectionInputConsumer;        
-        OnDirInput += directionConsumer.HandleDirectionInput;
-    }
-    public static void UnregisterDirectionConsumer(IRegistrable consumer) {
-        IDirectionInputConsumer directionConsumer = consumer as IDirectionInputConsumer;
-        OnDirInput -= directionConsumer.HandleDirectionInput;
-        consumer.OnDisableEvent -= UnregisterDirectionConsumer;
-        consumer.OnDestroyEvent -= UnregisterDirectionConsumer;
-    }
-    public interface IDirectionInputConsumer
-    {
-        public void HandleDirectionInput(Vector2 direction);
-    }
-    #endregion`
-
-	result += "\n"
-
-	return result
-}
-
-func createButtonInput(name string, key string) string {
+func createInput(name string, key string) string {
 	var result string
 
 	result += fmt.Sprintf("\n#region %s\n", name)
@@ -176,16 +179,16 @@ func createButtonInput(name string, key string) string {
 	result += fmt.Sprintf("On%sInputUp?.Invoke();\n}\n}\n", name)
 	result += fmt.Sprintf("public static void Register%sConsumer(IRegistrable consumer) {\n", name)
 	result += fmt.Sprintf("consumer.OnDisableEvent += Unregister%sConsumer;\n", name)
-	result += fmt.Sprintf("consumer.OnDestroyEvent += Unregister%sConsumer;\n", name)
+	result += fmt.Sprintf("consumer.OnDestroyEvent += Unregister%sConsumer;\n\n", name)
 	result += fmt.Sprintf("I%sInputConsumer %sConsumer = consumer as I%sInputConsumer;\n", name, name, name)
 	result += fmt.Sprintf("On%sInputDown += %sConsumer.Handle%sInputDown;\n", name, name, name)
 	result += fmt.Sprintf("On%sInputUp += %sConsumer.Handle%sInputUp;\n}\n", name, name, name)
 	result += fmt.Sprintf("public static void Unregister%sConsumer(IRegistrable consumer) {\n", name)
+	result += fmt.Sprintf("consumer.OnDisableEvent -= Unregister%sConsumer;\n", name)
+	result += fmt.Sprintf("consumer.OnDestroyEvent -= Unregister%sConsumer;\n\n", name)
 	result += fmt.Sprintf("I%sInputConsumer %sConsumer = consumer as I%sInputConsumer;\n", name, name, name)
 	result += fmt.Sprintf("On%sInputDown -= %sConsumer.Handle%sInputDown;\n", name, name, name)
-	result += fmt.Sprintf("On%sInputUp -= %sConsumer.Handle%sInputUp;\n", name, name, name)
-	result += fmt.Sprintf("consumer.OnDisableEvent -= Unregister%sConsumer;\n", name)
-	result += fmt.Sprintf("consumer.OnDestroyEvent -= Unregister%sConsumer;\n}\n", name)
+	result += fmt.Sprintf("On%sInputUp -= %sConsumer.Handle%sInputUp;\n}\n", name, name, name)
 	result += fmt.Sprintf("public interface I%sInputConsumer {\n", name)
 	result += fmt.Sprintf("public void Handle%sInputDown();\n", name)
 	result += fmt.Sprintf("public void Handle%sInputUp();\n}\n", name)

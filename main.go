@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"updater/inputs"
-	"updater/rooms"
 	updategroups "updater/update_groups"
 )
 
@@ -17,8 +16,6 @@ func main() {
 	switch os.Args[1] {
 	case "inputs":
 		inputs.UpdateInputGroups()
-	case "rooms":
-		rooms.UpdateRooms()
 	case "update_groups":
 		updategroups.UpdateGroups()
 	default:
